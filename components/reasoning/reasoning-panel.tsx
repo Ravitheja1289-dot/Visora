@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ChevronDown, ChevronUp, Check, ArrowRight, Loader2, Sparkles, Ban } from "lucide-react";
+import { ChevronDown, ChevronUp, Check, ArrowRight, Loader2, Sparkles, Ban, XCircle } from "lucide-react";
 import { AnalysisState } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ export function ReasoningPanel({
 
   const getStatusBadge = () => {
     switch (status) {
-      case "analyzing":
+      case "running":
         return (
           <span className="flex items-center gap-1.5 rounded-full border border-[#0071e3]/40 bg-[#0071e3]/15 px-2.5 py-0.5 text-[10px] font-medium text-[#2997ff]">
             <Loader2 className="h-2.5 w-2.5 animate-spin" />
@@ -37,6 +37,19 @@ export function ReasoningPanel({
           <span className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-medium text-amber-400">
             <Ban className="h-2.5 w-2.5" />
             Stopped
+          </span>
+        );
+      case "error":
+        return (
+          <span className="flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-0.5 text-[10px] font-medium text-red-400">
+            <XCircle className="h-2.5 w-2.5" />
+            Failed
+          </span>
+        );
+      case "waiting_for_clarification":
+        return (
+          <span className="flex items-center gap-1 rounded-full border border-[#0071e3]/40 bg-[#0071e3]/15 px-2.5 py-0.5 text-[10px] font-medium text-[#2997ff]">
+            Waiting
           </span>
         );
       default:
@@ -84,6 +97,8 @@ export function ReasoningPanel({
               const isCompleted = stage.status === "completed";
               const isInProgress = stage.status === "in_progress";
               const isPending = stage.status === "pending";
+              const isStopped = stage.status === "stopped";
+              const isError = stage.status === "error";
 
               return (
                 <div
@@ -92,7 +107,9 @@ export function ReasoningPanel({
                     "flex items-center gap-2.5 text-xs transition-colors py-0.5",
                     isCompleted && "text-white/80",
                     isInProgress && "text-[#2997ff] font-medium",
-                    isPending && "text-white/30"
+                    isPending && "text-white/30",
+                    isStopped && "text-amber-400",
+                    isError && "text-red-400"
                   )}
                 >
                   {/* Status Indicator Icon */}
@@ -100,11 +117,11 @@ export function ReasoningPanel({
                     {isCompleted ? (
                       <Check className="h-3.5 w-3.5 text-emerald-400" />
                     ) : isInProgress ? (
-                      status === "stopped" ? (
-                        <Ban className="h-3.5 w-3.5 text-amber-400" />
-                      ) : (
-                        <ArrowRight className="h-3.5 w-3.5 animate-pulse text-[#2997ff]" />
-                      )
+                      <ArrowRight className="h-3.5 w-3.5 animate-pulse text-[#2997ff]" />
+                    ) : isStopped ? (
+                      <Ban className="h-3.5 w-3.5 text-amber-400" />
+                    ) : isError ? (
+                      <XCircle className="h-3.5 w-3.5 text-red-400" />
                     ) : (
                       <span className="h-1.5 w-1.5 rounded-full bg-white/20" />
                     )}

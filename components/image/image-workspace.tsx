@@ -48,9 +48,9 @@ export function ImageWorkspace({
   };
 
   return (
-    <div className="flex h-full w-full flex-col rounded-[24px] border border-white/[0.09] bg-white/[0.02] backdrop-blur-2xl overflow-hidden shadow-apple-card">
+    <div className="flex h-full w-full flex-col rounded-[24px] border border-white/[0.08] bg-white/[0.015] backdrop-blur-[40px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
       {/* Top Specular Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] bg-white/[0.03] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-black/20 px-4 py-3">
         {/* File Metadata Info */}
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/80">

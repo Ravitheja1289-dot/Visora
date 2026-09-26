@@ -1,24 +1,18 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useCopilotChat, useCopilotReadable } from "@copilotkit/react-core";
 import { TextMessage, Role } from "@copilotkit/runtime-client-gql";
-import { ChatMessage, AnalysisStage, AnalysisState, GenerationStatus } from "@/types/chat";
+import { ChatMessage, AnalysisState, GenerationStatus, AnalysisStage } from "@/types/chat";
 import { UploadedImageState } from "@/types/image";
 
-const INITIAL_STAGES: AnalysisStage[] = [
-  { id: "stage-1", label: "Examining image", status: "pending" },
-  { id: "stage-2", label: "Identifying visual elements", status: "pending" },
-  { id: "stage-3", label: "Analyzing spatial relationships", status: "pending" },
-  { id: "stage-4", label: "Ready", status: "pending" },
-];
+const CLARIFICATION_QUESTION = "What should I evaluate?";
 
 interface UseCopilotVisoraChatProps {
   selectedImage: UploadedImageState | null;
 }
 
 export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProps) {
-  // 1. Expose clean image metadata context to CopilotKit without embedding raw base64 into chat state
   useCopilotReadable({
     description: "Currently inspected image in Visora visual canvas",
     value: selectedImage
@@ -32,7 +26,6 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
       : null,
   });
 
-  // 2. Real CopilotKit Chat Integration Hook
   const {
     visibleMessages,
     appendMessage,
@@ -41,40 +34,19 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
     reset: copilotReset,
   } = useCopilotChat();
 
-  const [localStatus, setLocalStatus] = useState<"idle" | "analyzing" | "stopped">("idle");
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isManuallyStopped, setIsManuallyStopped] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const [analysisState, setAnalysisState] = useState<AnalysisState>({
-    isCollapsed: false,
-    status: "idle",
-    stages: INITIAL_STAGES,
-    currentStageIndex: 0,
-  });
+  const [clarificationOptions, setClarificationOptions] = useState<string[]>([]);
+  const [dynamicStages, setDynamicStages] = useState<string[]>([]);
 
-  const analysisTimersRef = useRef<NodeJS.Timeout[]>([]);
-
-  const clearAllTimers = useCallback(() => {
-    analysisTimersRef.current.forEach(clearTimeout);
-    analysisTimersRef.current = [];
-  }, []);
-
-  useEffect(() => {
-    return () => clearAllTimers();
-  }, [clearAllTimers]);
-
-  // Map CopilotKit visibleMessages to Visora ChatMessage[]
-  const mappedMessages = useMemo<ChatMessage[]>(() => {
+  // Parse hidden metadata messages from the CopilotKit stream
+  const { mappedMessages, hasClarification } = useMemo(() => {
     const list: ChatMessage[] = [];
-
-    // If analysis is completed and no messages yet, provide the initial assistant prompt
-    if (analysisState.status === "completed" && (!visibleMessages || visibleMessages.length === 0)) {
-      list.push({
-        id: "msg-greeting",
-        role: "assistant",
-        content: "I've analyzed the image. What would you like to know?",
-        timestamp: new Date(),
-      });
-    }
+    let isWaitingForClarification = false;
+    let currentStages: string[] = [];
+    let currentClarificationOpts: string[] = [];
 
     (visibleMessages || []).forEach((msg: any, index: number) => {
       const isUser = msg.role === Role.User || msg.role === "user";
@@ -85,39 +57,143 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
           ? msg.content.map((c: any) => c.text || "").join(" ")
           : msg.text || "";
 
-      // Check if message is currently streaming (last assistant message while copilot is loading)
-      const isStreaming = !isUser && isCopilotLoading && index === visibleMessages.length - 1;
+      if (!isUser) {
+        if (content.startsWith("__visora_stage__:!")) {
+          return;
+        }
+        if (content.startsWith("__visora_stage__:text")) return; // CopilotKit sometimes buffers partial string
 
-      list.push({
-        id: msg.id || `msg-${index}`,
-        role: isUser ? "user" : "assistant",
-        content,
-        timestamp: msg.createdAt ? new Date(msg.createdAt) : new Date(),
-        isStreaming,
-        isStopped: false,
-      });
+        // Check for stage transitions
+        if (content.includes("__visora_stage__:text") || content.includes("__visora_stage__:!")) return;
+
+        if (content.startsWith("__visora_stage__:text")) return; // partial chunk from CopilotKit maybe?
+        
+        // Exact prefix matching handling partial chunks
+        const stageMatch = content.match(/__visora_stage__:([\w_]+)/);
+        if (stageMatch) {
+          const stageName = stageMatch[1];
+          if (!currentStages.includes(stageName)) {
+            currentStages.push(stageName);
+          }
+          return; // Hide this message
+        }
+
+        const clarMatch = content.match(/__visora_clarification__:(.+)/);
+        if (clarMatch) {
+          isWaitingForClarification = true;
+          try {
+            const parsed = JSON.parse(clarMatch[1]);
+            if (parsed.options) {
+              currentClarificationOpts = parsed.options;
+            }
+          } catch (e) {
+            console.error("Failed to parse clarification payload", e);
+          }
+          return; // Hide this message
+        }
+        
+        // Fallback for old hardcoded prompt just in case
+        if (content.includes(CLARIFICATION_QUESTION)) {
+            isWaitingForClarification = true;
+            return;
+        }
+      }
+
+      const isStreaming = !isUser && isCopilotLoading && index === visibleMessages.length - 1;
+      const isStoppedMsg = !isUser && isManuallyStopped && index === visibleMessages.length - 1;
+
+      if (content.trim()) {
+        list.push({
+          id: msg.id || `msg-${index}`,
+          role: isUser ? "user" : "assistant",
+          content,
+          timestamp: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+          isStreaming,
+          isStopped: isStoppedMsg,
+        });
+      }
     });
 
-    return list;
-  }, [visibleMessages, analysisState.status, isCopilotLoading]);
+    return { list, hasClarification: isWaitingForClarification, stages: currentStages, opts: currentClarificationOpts };
+  }, [visibleMessages, isCopilotLoading, isManuallyStopped]);
 
-  // Calculate composite generation status
+  useEffect(() => {
+    if (mappedMessages.opts && mappedMessages.opts.length > 0) {
+      setClarificationOptions(mappedMessages.opts);
+    }
+  }, [mappedMessages.opts]);
+
+  useEffect(() => {
+    setDynamicStages(mappedMessages.stages);
+  }, [mappedMessages.stages]);
+
+  // Derive generation status from actual CopilotKit state
   const generationStatus: GenerationStatus = useMemo(() => {
-    if (localStatus === "analyzing") return "analyzing";
-    if (isCopilotLoading) return "streaming";
-    if (localStatus === "stopped") return "stopped";
     if (connectionError) return "error";
+    if (isManuallyStopped) return "stopped";
+    if (isCopilotLoading) return "running";
+    if (hasClarification) return "waiting_for_clarification";
+    if (visibleMessages && visibleMessages.length > 0) return "completed";
+    if (selectedImage) return "ready";
     return "idle";
-  }, [localStatus, isCopilotLoading, connectionError]);
+  }, [isCopilotLoading, connectionError, isManuallyStopped, visibleMessages, selectedImage, hasClarification]);
 
-  // Send message through the real CopilotKit agent pipeline
+  // Compute Analysis State for Reasoning Panel based on generationStatus
+  const analysisState: AnalysisState = useMemo(() => {
+    // Map internal node names to human readable labels
+    const NODE_LABELS: Record<string, string> = {
+      receive_question: "Processing request",
+      inspect_context: "Inspecting visual context",
+      clarification: "Waiting for user input",
+      vision_analysis: "Synthesizing visual logic"
+    };
+
+    let computedStages: AnalysisStage[] = [
+      { id: "img-recv", label: "Image received", status: "completed" },
+    ];
+    
+    // Add dynamic stages executed so far
+    dynamicStages.forEach((stage, idx) => {
+        computedStages.push({
+            id: `stage-${stage}-${idx}`,
+            label: NODE_LABELS[stage] || stage,
+            status: "completed"
+        });
+    });
+
+    if (generationStatus === "running") {
+        if (computedStages.length > 1) {
+            // Mark the last dynamic stage as in_progress
+            computedStages[computedStages.length - 1].status = "in_progress";
+        } else {
+            computedStages.push({ id: "analyzing", label: "Analyzing...", status: "in_progress" });
+        }
+    } else if (generationStatus === "completed" || generationStatus === "waiting_for_clarification") {
+      // all completed
+    } else if (generationStatus === "stopped") {
+        if (computedStages.length > 1) {
+            computedStages[computedStages.length - 1].status = "stopped";
+        }
+    } else if (generationStatus === "error") {
+        if (computedStages.length > 1) {
+            computedStages[computedStages.length - 1].status = "error";
+        }
+    }
+
+    return {
+      isCollapsed,
+      status: generationStatus,
+      stages: computedStages,
+    };
+  }, [generationStatus, selectedImage, isCollapsed, dynamicStages]);
+
   const sendMessage = useCallback(
     async (content: string) => {
       const trimmed = content.trim();
-      if (!trimmed || isCopilotLoading || localStatus === "analyzing") return;
+      if (!trimmed || isCopilotLoading) return;
 
       setConnectionError(null);
-      setLocalStatus("idle");
+      setIsManuallyStopped(false);
 
       try {
         await appendMessage(
@@ -128,114 +204,39 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
         );
       } catch (err: any) {
         console.error("[CopilotKit] Send message failed:", err);
-        setConnectionError(
-          err?.message || "Failed to reach CopilotKit runtime at /api/copilotkit."
-        );
+        setConnectionError("Visual analysis is temporarily unavailable. Please try again.");
       }
     },
-    [appendMessage, isCopilotLoading, localStatus]
+    [appendMessage, isCopilotLoading]
   );
 
-  // Stop Generation
   const stopGeneration = useCallback(() => {
-    clearAllTimers();
     copilotStopGeneration();
+    setIsManuallyStopped(true);
+  }, [copilotStopGeneration]);
 
-    if (localStatus === "analyzing") {
-      setLocalStatus("stopped");
-      setAnalysisState((prev) => ({ ...prev, status: "stopped" }));
-    } else {
-      setLocalStatus("stopped");
-    }
-  }, [clearAllTimers, copilotStopGeneration, localStatus]);
-
-  // Start analysis progression
   const startAnalysis = useCallback(
     (initialPrompt?: string) => {
-      clearAllTimers();
-      setConnectionError(null);
-      setLocalStatus("analyzing");
-      setAnalysisState({
-        isCollapsed: false,
-        status: "analyzing",
-        stages: INITIAL_STAGES.map((s, idx) => ({
-          ...s,
-          status: idx === 0 ? "in_progress" : "pending",
-        })),
-        currentStageIndex: 0,
-      });
-
-      const stageDelays = [500, 1100, 1700, 2300];
-
-      const t1 = setTimeout(() => {
-        setAnalysisState((prev) => ({
-          ...prev,
-          currentStageIndex: 1,
-          stages: prev.stages.map((s, i) =>
-            i === 0 ? { ...s, status: "completed" } : i === 1 ? { ...s, status: "in_progress" } : s
-          ),
-        }));
-      }, stageDelays[0]);
-
-      const t2 = setTimeout(() => {
-        setAnalysisState((prev) => ({
-          ...prev,
-          currentStageIndex: 2,
-          stages: prev.stages.map((s, i) =>
-            i <= 1 ? { ...s, status: "completed" } : i === 2 ? { ...s, status: "in_progress" } : s
-          ),
-        }));
-      }, stageDelays[1]);
-
-      const t3 = setTimeout(() => {
-        setAnalysisState((prev) => ({
-          ...prev,
-          currentStageIndex: 3,
-          stages: prev.stages.map((s, i) =>
-            i <= 2 ? { ...s, status: "completed" } : i === 3 ? { ...s, status: "in_progress" } : s
-          ),
-        }));
-      }, stageDelays[2]);
-
-      const t4 = setTimeout(() => {
-        setAnalysisState((prev) => ({
-          ...prev,
-          status: "completed",
-          stages: prev.stages.map((s) => ({ ...s, status: "completed" })),
-        }));
-        setLocalStatus("idle");
-
-        if (initialPrompt && initialPrompt.trim()) {
-          setTimeout(() => {
-            sendMessage(initialPrompt.trim());
-          }, 300);
-        }
-      }, stageDelays[3]);
-
-      analysisTimersRef.current.push(t1, t2, t3, t4);
+      if (initialPrompt && initialPrompt.trim()) {
+         sendMessage(initialPrompt.trim());
+      }
     },
-    [clearAllTimers, sendMessage]
+    [sendMessage]
   );
 
   const toggleAnalysisCollapse = useCallback(() => {
-    setAnalysisState((prev) => ({ ...prev, isCollapsed: !prev.isCollapsed }));
+    setIsCollapsed((prev) => !prev);
   }, []);
 
   const resetChat = useCallback(() => {
-    clearAllTimers();
     copilotReset();
-    setLocalStatus("idle");
+    setIsManuallyStopped(false);
     setConnectionError(null);
-    setAnalysisState({
-      isCollapsed: false,
-      status: "idle",
-      stages: INITIAL_STAGES,
-      currentStageIndex: 0,
-    });
-  }, [clearAllTimers, copilotReset]);
+    setIsCollapsed(false);
+  }, [copilotReset]);
 
   return {
-    messages: mappedMessages,
+    messages: mappedMessages.list,
     generationStatus,
     analysisState,
     connectionError,
@@ -244,5 +245,6 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
     stopGeneration,
     resetChat,
     toggleAnalysisCollapse,
+    clarificationOptions,
   };
 }

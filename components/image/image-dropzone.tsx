@@ -54,24 +54,43 @@ export function ImageDropzone({ onImageSelected }: ImageDropzoneProps) {
       setIsLoading(true);
 
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
 
         const img = new window.Image();
-        img.onload = () => {
-          setIsLoading(false);
-          onImageSelected({
-            dataUrl,
-            file,
-            metadata: {
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              width: img.width,
-              height: img.height,
-              aspectRatio: `${img.width}:${img.height}`,
-            },
-          });
+        img.onload = async () => {
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            
+            const response = await fetch("http://localhost:8000/upload", {
+              method: "POST",
+              body: formData,
+            });
+            
+            if (!response.ok) {
+              throw new Error("Upload failed");
+            }
+            
+            const data = await response.json();
+            
+            setIsLoading(false);
+            onImageSelected({
+              dataUrl,
+              file,
+              metadata: {
+                name: data.imageId, // Use the server-generated imageId
+                size: file.size,
+                type: file.type,
+                width: img.width,
+                height: img.height,
+                aspectRatio: `${img.width}:${img.height}`,
+              },
+            });
+          } catch (err) {
+            setIsLoading(false);
+            setErrorMessage("Failed to upload image to the backend.");
+          }
         };
         img.onerror = () => {
           setIsLoading(false);

@@ -26,6 +26,7 @@ function VisoraApp() {
     stopGeneration,
     resetChat,
     toggleAnalysisCollapse,
+    clarificationOptions,
   } = useCopilotVisoraChat({ selectedImage });
 
   const handleReset = () => {
@@ -52,22 +53,22 @@ function VisoraApp() {
       {!selectedImage && (
         <div className="flex flex-col items-center text-center animate-fade-in py-2">
           {/* Hero Header */}
-          <div className="mb-8 max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.04] px-3.5 py-1 backdrop-blur-xl shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#2997ff] shadow-[0_0_6px_#2997ff]" />
-              <span className="text-[12px] font-medium text-white/80">
+          <div className="mb-10 max-w-2xl mt-8">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-white/[0.03] px-4 py-1.5 backdrop-blur-xl shadow-sm transition-all hover:bg-white/[0.05]">
+              <span className="h-2 w-2 rounded-full bg-[#0071e3] shadow-[0_0_8px_rgba(0,113,227,0.8)]" />
+              <span className="text-[13px] font-medium tracking-wide text-white/90">
                 Visual Reasoning Assistant
               </span>
             </div>
 
-            <h1 className="text-4xl font-semibold tracking-[-0.038em] text-white sm:text-5xl md:text-6xl leading-[1.06]">
+            <h1 className="text-5xl font-semibold tracking-tight text-white sm:text-6xl md:text-[72px] leading-[1.05]">
               See it. Question it. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/95 to-white/40">
+              <span className="text-transparent bg-clip-text bg-gradient-to-br from-[#ffffff] via-[#a5a5ac] to-[#424245]">
                 Understand it.
               </span>
             </h1>
 
-            <p className="mt-4 text-sm sm:text-base leading-relaxed text-[#86868b] font-normal max-w-lg mx-auto">
+            <p className="mt-6 text-[17px] leading-[1.4] text-[#86868b] font-medium max-w-[28rem] mx-auto tracking-[-0.015em]">
               Interrogate interfaces, architecture schematics, and spatial scenes.
               Inspect layout hierarchies and question visual claims with transparent reasoning.
             </p>
@@ -163,6 +164,7 @@ function VisoraApp() {
                 onSendMessage={sendMessage}
                 onStop={stopGeneration}
                 onToggleAnalysisCollapse={toggleAnalysisCollapse}
+                clarificationOptions={clarificationOptions}
               />
             </div>
           </div>

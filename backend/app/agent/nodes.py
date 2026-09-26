@@ -2,13 +2,8 @@ from typing import Dict, Any, List, Optional
 from langgraph.types import interrupt
 from .state import VisoraAgentState
 from .prompts import (
-    DEV_GREETING,
     CLARIFICATION_QUESTION,
-    CLARIFICATION_OPTIONS,
-    format_image_analysis_response,
-    format_format_response,
-    format_vlm_notice,
-    format_clarification_resolved_response
+    CLARIFICATION_OPTIONS
 )
 
 def receive_question_node(state: VisoraAgentState) -> Dict[str, Any]:
@@ -85,39 +80,40 @@ def clarification_node(state: VisoraAgentState) -> Dict[str, Any]:
         "analysis_status": "clarification_resolved"
     }
 
-def answer_node(state: VisoraAgentState) -> Dict[str, Any]:
+import os
+from ..services.gemini import analyze_image
+
+async def vision_analysis_node(state: VisoraAgentState) -> Dict[str, Any]:
     """
-    Development answer node.
-    Synthesizes a response strictly using LangGraph state values
-    (image metadata, multi-turn history, clarification focus).
+    Multimodal answer node utilizing Gemini VLM.
     """
     question = (state.get("current_question") or "").strip()
-    q_lower = question.lower()
     clar = state.get("clarification_value")
     img_name = state.get("image_name")
-    img_dims = state.get("image_dimensions")
-    img_type = state.get("image_type")
-
-    if clar:
-        reply = format_clarification_resolved_response(clar)
-    elif "hello" in q_lower or "hi" == q_lower:
-        reply = DEV_GREETING
-    elif "what image" in q_lower or "which image" in q_lower or "analyzing" in q_lower:
-        if img_name:
-            width = img_dims.get("width", 0) if img_dims else 0
-            height = img_dims.get("height", 0) if img_dims else 0
-            reply = format_image_analysis_response(img_name, width, height, img_type or "png")
-        else:
-            reply = "No image is currently active in context. Please upload or inspect an image."
-    elif "format" in q_lower:
-        if img_type:
-            reply = format_format_response(img_type)
-        else:
-            reply = "The active image format is not specified."
-    elif "what do you see" in q_lower:
-        reply = format_vlm_notice()
+    img_type = state.get("image_type") or "image/png"
+    messages_history = state.get("messages", [])
+    
+    # Retrieve the image path
+    image_path = None
+    if img_name:
+        # Go up three levels from backend/app/agent to backend, then uploads
+        upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
+        image_path = os.path.join(upload_dir, img_name)
+    
+    if not image_path or not os.path.exists(image_path):
+        reply = "No valid image context is currently active. Please upload or select an image."
     else:
-        reply = f"Visora LangGraph agent acknowledged: \"{question}\". Agent state and thread are active."
+        try:
+            # We call the gemini service directly. It will stream tokens internally via adispatch_custom_event
+            reply = await analyze_image(
+                image_path=image_path,
+                mime_type=img_type,
+                question=question,
+                history=messages_history,
+                focus_area=clar
+            )
+        except Exception as e:
+            reply = "Visual analysis is temporarily unavailable. Please try again."
 
     new_message = {
         "role": "assistant",

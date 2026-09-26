@@ -13,6 +13,7 @@ interface ChatWorkspaceProps {
   onSendMessage: (message: string) => void;
   onStop: () => void;
   onToggleAnalysisCollapse: () => void;
+  clarificationOptions?: string[];
 }
 
 export function ChatWorkspace({
@@ -22,18 +23,21 @@ export function ChatWorkspace({
   onSendMessage,
   onStop,
   onToggleAnalysisCollapse,
+  clarificationOptions,
 }: ChatWorkspaceProps) {
   return (
-    <div className="flex h-full w-full flex-col rounded-[24px] border border-white/[0.09] bg-white/[0.02] backdrop-blur-2xl overflow-hidden shadow-apple-card">
+    <div className="flex h-full w-full flex-col rounded-[24px] border border-white/[0.08] bg-white/[0.015] backdrop-blur-[40px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
       {/* Assistant Header */}
-      <div className="flex items-center justify-between border-b border-white/[0.07] bg-white/[0.03] px-5 py-3.5">
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-[#2997ff] shadow-[0_0_8px_#2997ff]" />
-          <h3 className="text-xs font-semibold tracking-tight text-white">
+      <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/20 px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0071e3]/10">
+            <div className="h-2.5 w-2.5 rounded-full bg-[#0071e3] shadow-[0_0_10px_#0071e3]" />
+          </div>
+          <h3 className="text-[15px] font-semibold tracking-tight text-white/95">
             Assistant
           </h3>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-[#86868b]">
+        <div className="flex items-center gap-2 text-[12px] font-medium text-[#86868b]">
           <span>Multimodal Session</span>
         </div>
       </div>
@@ -53,6 +57,7 @@ export function ChatWorkspace({
         onSendMessage={onSendMessage}
         onStop={onStop}
         generationStatus={generationStatus}
+        clarificationOptions={clarificationOptions}
       />
     </div>
   );
