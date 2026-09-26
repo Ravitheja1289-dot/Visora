@@ -42,7 +42,7 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
   const [dynamicStages, setDynamicStages] = useState<string[]>([]);
 
   // Parse hidden metadata messages from the CopilotKit stream
-  const { mappedMessages, hasClarification } = useMemo(() => {
+  const { list: mappedMessagesList, hasClarification, stages: mappedStages, opts: mappedOpts } = useMemo(() => {
     const list: ChatMessage[] = [];
     let isWaitingForClarification = false;
     let currentStages: string[] = [];
@@ -118,14 +118,14 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
   }, [visibleMessages, isCopilotLoading, isManuallyStopped]);
 
   useEffect(() => {
-    if (mappedMessages.opts && mappedMessages.opts.length > 0) {
-      setClarificationOptions(mappedMessages.opts);
+    if (mappedOpts && mappedOpts.length > 0) {
+      setClarificationOptions(mappedOpts);
     }
-  }, [mappedMessages.opts]);
+  }, [mappedOpts]);
 
   useEffect(() => {
-    setDynamicStages(mappedMessages.stages);
-  }, [mappedMessages.stages]);
+    setDynamicStages(mappedStages);
+  }, [mappedStages]);
 
   // Derive generation status from actual CopilotKit state
   const generationStatus: GenerationStatus = useMemo(() => {
@@ -236,7 +236,7 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
   }, [copilotReset]);
 
   return {
-    messages: mappedMessages.list,
+    messages: mappedMessagesList,
     generationStatus,
     analysisState,
     connectionError,

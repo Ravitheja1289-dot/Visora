@@ -52,7 +52,7 @@ flowchart LR
 
     LG --> CP[Checkpoint / Conversation State]
 
-    LG --> INT[interrupt()]
+    LG --> INT["interrupt()"]
     INT --> FE
     FE --> RES[Command resume]
     RES --> LG
