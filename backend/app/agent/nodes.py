@@ -113,7 +113,7 @@ async def vision_analysis_node(state: VisoraAgentState) -> Dict[str, Any]:
                 focus_area=clar
             )
         except Exception as e:
-            reply = "Visual analysis is temporarily unavailable. Please try again."
+            reply = f"Error: {str(e)}"
 
     new_message = {
         "role": "assistant",

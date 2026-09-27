@@ -4,13 +4,6 @@ import {
 } from "@copilotkit/runtime";
 import { HttpAgent } from "@ag-ui/client";
 
-/**
- * Visora CopilotKit Runtime Endpoint (Phase 4)
- * 
- * Replaces the Phase 3 placeholder VisoraDevAgent with a real LangGraph
- * agent running in the Python FastAPI backend service.
- * Mediates communication via the AG-UI SSE protocol.
- */
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 

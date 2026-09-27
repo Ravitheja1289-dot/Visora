@@ -1,3 +1,9 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import json
 import time
 import asyncio
@@ -174,8 +180,17 @@ async def run_agent(request: Request):
                 "messageId": msg_id,
                 "role": "assistant"
             })
+
+            # Open thinking block immediately to engage user with live flow
+            yield format_sse({
+                "type": "TEXT_MESSAGE_CONTENT",
+                "messageId": msg_id,
+                "delta": "<thinking>\nInitializing multimodal reasoning pipeline...\n"
+            })
             
+            thinking_closed = False
             streamed_tokens = False
+
             async for event in visora_graph.astream_events(input_data, config, version="v2"):
                 if await request.is_disconnected():
                     break
@@ -183,31 +198,46 @@ async def run_agent(request: Request):
                 if event["event"] == "on_custom_event" and event["name"] == "gemini_token":
                     chunk = event["data"]["token"]
                     streamed_tokens = True
+                    if not thinking_closed:
+                        yield format_sse({
+                            "type": "TEXT_MESSAGE_CONTENT",
+                            "messageId": msg_id,
+                            "delta": "</thinking>\n\n"
+                        })
+                        thinking_closed = True
                     yield format_sse({
                         "type": "TEXT_MESSAGE_CONTENT",
                         "messageId": msg_id,
-                        "delta": chunk,
-                        "content": chunk
+                        "delta": chunk
                     })
-                elif event["event"] == "on_chain_start":
-                    node_name = event.get("name")
-                    if node_name in ["receive_question", "inspect_context", "vision_analysis"]:
-                        stage_msg_id = f"msg-stage-{int(time.time()*1000)}"
-                        stage_content = f"__visora_stage__:{node_name}"
-                        yield format_sse({
-                            "type": "TEXT_MESSAGE_START",
-                            "messageId": stage_msg_id,
-                            "role": "assistant"
-                        })
+                elif event["event"] == "on_custom_event" and event["name"] == "visora_progress":
+                    prog_text = event["data"].get("text", "")
+                    if prog_text and not thinking_closed:
                         yield format_sse({
                             "type": "TEXT_MESSAGE_CONTENT",
-                            "messageId": stage_msg_id,
-                            "delta": stage_content,
-                            "content": stage_content
+                            "messageId": msg_id,
+                            "delta": prog_text
                         })
+                elif event["event"] == "on_chain_start":
+                    node_name = event.get("name")
+                    if node_name == "receive_question" and not thinking_closed:
                         yield format_sse({
-                            "type": "TEXT_MESSAGE_END",
-                            "messageId": stage_msg_id
+                            "type": "TEXT_MESSAGE_CONTENT",
+                            "messageId": msg_id,
+                            "delta": "Processing query and preparing conversational turn...\n"
+                        })
+                    elif node_name == "inspect_context" and not thinking_closed:
+                        target_name = image_meta.imageName if image_meta else "active canvas"
+                        yield format_sse({
+                            "type": "TEXT_MESSAGE_CONTENT",
+                            "messageId": msg_id,
+                            "delta": f"Inspecting visual canvas: {target_name}...\n"
+                        })
+                    elif node_name == "vision_analysis" and not thinking_closed:
+                        yield format_sse({
+                            "type": "TEXT_MESSAGE_CONTENT",
+                            "messageId": msg_id,
+                            "delta": "Engaging Gemini 2.5 Flash Vision for multimodal analysis...\n"
                         })
 
             if await request.is_disconnected():
@@ -218,14 +248,21 @@ async def run_agent(request: Request):
             is_interrupted = bool(post_run_state.tasks and post_run_state.tasks[0].interrupts)
             
             if is_interrupted:
+                if not thinking_closed:
+                    yield format_sse({
+                        "type": "TEXT_MESSAGE_CONTENT",
+                        "messageId": msg_id,
+                        "delta": "</thinking>\n\n"
+                    })
+                    thinking_closed = True
+
                 interrupt_data = post_run_state.tasks[0].interrupts[0].value
                 clar_payload = json.dumps(interrupt_data) if interrupt_data else "{}"
                 clar_text = f"__visora_clarification__:{clar_payload}"
                 yield format_sse({
                     "type": "TEXT_MESSAGE_CONTENT",
                     "messageId": msg_id,
-                    "delta": clar_text,
-                    "content": clar_text
+                    "delta": clar_text
                 })
                 yield format_sse({
                     "type": "TEXT_MESSAGE_END",
@@ -248,6 +285,14 @@ async def run_agent(request: Request):
                     }
                 })
             else:
+                if not thinking_closed:
+                    yield format_sse({
+                        "type": "TEXT_MESSAGE_CONTENT",
+                        "messageId": msg_id,
+                        "delta": "</thinking>\n\n"
+                    })
+                    thinking_closed = True
+
                 if not streamed_tokens:
                     final_messages = post_run_state.values.get("messages", [])
                     assistant_reply = "Visora agent responded."
@@ -263,8 +308,7 @@ async def run_agent(request: Request):
                         yield format_sse({
                             "type": "TEXT_MESSAGE_CONTENT",
                             "messageId": msg_id,
-                            "delta": chunk,
-                            "content": chunk
+                            "delta": chunk
                         })
                         await asyncio.sleep(0.01)
 
@@ -281,10 +325,19 @@ async def run_agent(request: Request):
                 })
 
         except Exception as e:
-            # Emit run error
+            if not thinking_closed:
+                yield format_sse({
+                    "type": "TEXT_MESSAGE_CONTENT",
+                    "messageId": msg_id,
+                    "delta": f"\nError occurred during execution: {str(e)}\n</thinking>\n\nVisual analysis encountered an error. Please try again."
+                })
+            yield format_sse({
+                "type": "TEXT_MESSAGE_END",
+                "messageId": msg_id
+            })
             yield format_sse({
                 "type": "RUN_ERROR",
-                "message": "Visual analysis is temporarily unavailable. Please try again.",
+                "message": f"Visual analysis execution failed: {str(e)}",
                 "code": "LANGGRAPH_EXECUTION_FAILURE"
             })
             yield format_sse({
@@ -292,8 +345,7 @@ async def run_agent(request: Request):
                 "runId": run_id,
                 "threadId": thread_id,
                 "outcome": {
-                    "type": "error",
-                    "error": "Visual analysis is temporarily unavailable."
+                    "type": "success"
                 }
             })
 

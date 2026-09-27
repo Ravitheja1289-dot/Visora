@@ -16,14 +16,17 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
   useCopilotReadable({
     description: "Currently inspected image in Visora visual canvas",
     value: selectedImage
-      ? {
+      ? JSON.stringify({
           imageId: selectedImage.metadata.name,
           imageName: selectedImage.metadata.name,
           imageType: selectedImage.metadata.type,
-          imageDimensions: `${selectedImage.metadata.width || 0}x${selectedImage.metadata.height || 0}px`,
+          imageDimensions: {
+            width: selectedImage.metadata.width || 0,
+            height: selectedImage.metadata.height || 0,
+          },
           imageSizeBytes: selectedImage.metadata.size,
-        }
-      : null,
+        })
+      : "",
   });
 
   const {
@@ -50,36 +53,32 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
 
     (visibleMessages || []).forEach((msg: any, index: number) => {
       const isUser = msg.role === Role.User || msg.role === "user";
-      const content =
+      let content =
         typeof msg.content === "string"
           ? msg.content
           : Array.isArray(msg.content)
-          ? msg.content.map((c: any) => c.text || "").join(" ")
-          : msg.text || "";
+          ? msg.content.map((c: any) => (typeof c === "string" ? c : c.text || "")).join(" ")
+          : msg.text || (msg as any).message || "";
 
       if (!isUser) {
-        if (content.startsWith("__visora_stage__:!")) {
-          return;
+        // Extract stages from thinking text or legacy __visora_stage__
+        if (content.includes("receive_question") || content.includes("Initializing") || content.includes("Processing query")) {
+          if (!currentStages.includes("receive_question")) currentStages.push("receive_question");
         }
-        if (content.startsWith("__visora_stage__:text")) return; // CopilotKit sometimes buffers partial string
-
-        // Check for stage transitions
-        if (content.includes("__visora_stage__:text") || content.includes("__visora_stage__:!")) return;
-
-        if (content.startsWith("__visora_stage__:text")) return; // partial chunk from CopilotKit maybe?
+        if (content.includes("inspect_context") || content.includes("Inspecting visual")) {
+          if (!currentStages.includes("inspect_context")) currentStages.push("inspect_context");
+        }
+        if (content.includes("Uploading visual") || content.includes("caching visual")) {
+          if (!currentStages.includes("upload_canvas")) currentStages.push("upload_canvas");
+        }
+        if (content.includes("vision_analysis") || content.includes("Analyzing visual") || content.includes("Engaging Gemini")) {
+          if (!currentStages.includes("vision_analysis")) currentStages.push("vision_analysis");
+        }
         
-        // Exact prefix matching handling partial chunks
-        const stageMatch = content.match(/__visora_stage__:([\w_]+)/);
-        if (stageMatch) {
-          const stageName = stageMatch[1];
-          if (!currentStages.includes(stageName)) {
-            currentStages.push(stageName);
-          }
-          return; // Hide this message
-        }
-
-        const clarMatch = content.match(/__visora_clarification__:(.+)/);
-        if (clarMatch) {
+        // Extract clarification
+        const clarRegex = /__visora_clarification__:({.*})/g;
+        let clarMatch;
+        while ((clarMatch = clarRegex.exec(content)) !== null) {
           isWaitingForClarification = true;
           try {
             const parsed = JSON.parse(clarMatch[1]);
@@ -89,12 +88,22 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
           } catch (e) {
             console.error("Failed to parse clarification payload", e);
           }
-          return; // Hide this message
         }
-        
-        // Fallback for old hardcoded prompt just in case
+
+        // Fallback for old hardcoded prompt
         if (content.includes(CLARIFICATION_QUESTION)) {
             isWaitingForClarification = true;
+        }
+
+        // Strip internal markers from content, but preserve <thinking> tags for inline ThinkingBlock
+        content = content
+          .replace(/__visora_stage__:([\w_]+)/g, "")
+          .replace(/__visora_clarification__:({.*})/g, "")
+          .replace(CLARIFICATION_QUESTION, "")
+          .trim();
+        
+        // If the message is completely empty after stripping metadata, and it's not streaming, don't show it
+        if (!content && !isCopilotLoading) {
             return;
         }
       }
@@ -102,7 +111,7 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
       const isStreaming = !isUser && isCopilotLoading && index === visibleMessages.length - 1;
       const isStoppedMsg = !isUser && isManuallyStopped && index === visibleMessages.length - 1;
 
-      if (content.trim()) {
+      if (content || isStreaming) {
         list.push({
           id: msg.id || `msg-${index}`,
           role: isUser ? "user" : "assistant",
@@ -143,9 +152,10 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
     // Map internal node names to human readable labels
     const NODE_LABELS: Record<string, string> = {
       receive_question: "Processing request",
-      inspect_context: "Inspecting visual context",
+      inspect_context: "Inspecting visual canvas",
+      upload_canvas: "Preparing visual tensor",
       clarification: "Waiting for user input",
-      vision_analysis: "Synthesizing visual logic"
+      vision_analysis: "Synthesizing visual reasoning"
     };
 
     let computedStages: AnalysisStage[] = [
@@ -217,9 +227,11 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
 
   const startAnalysis = useCallback(
     (initialPrompt?: string) => {
-      if (initialPrompt && initialPrompt.trim()) {
-         sendMessage(initialPrompt.trim());
-      }
+      const prompt =
+        initialPrompt && initialPrompt.trim()
+          ? initialPrompt.trim()
+          : "What is this image about? Please analyze it in detail.";
+      sendMessage(prompt);
     },
     [sendMessage]
   );

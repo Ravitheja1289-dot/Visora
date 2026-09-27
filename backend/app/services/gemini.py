@@ -40,6 +40,7 @@ async def analyze_image(
         uploaded_file = _UPLOAD_CACHE[image_path]
     else:
         try:
+            await adispatch_custom_event("visora_progress", {"text": "Uploading visual canvas and generating visual embedding...\n"})
             uploaded_file = await client.aio.files.upload(file=image_path, config={'mime_type': mime_type})
             _UPLOAD_CACHE[image_path] = uploaded_file
             if len(_UPLOAD_CACHE) > MAX_CACHE_ENTRIES:
@@ -60,6 +61,9 @@ async def analyze_image(
         # Skip empty messages
         if not content_val:
             continue
+        # Strip thinking block from prior history if present so model gets clean text
+        if "<thinking>" in content_val and "</thinking>" in content_val:
+            content_val = content_val.split("</thinking>")[-1].strip()
         contents.append(
             types.Content(role=role, parts=[types.Part.from_text(text=content_val)])
         )
@@ -76,6 +80,7 @@ async def analyze_image(
     contents.append(types.Content(role="user", parts=current_parts))
 
     try:
+        await adispatch_custom_event("visora_progress", {"text": "Analyzing visual composition, contrast, typography, and motifs...\n"})
         response_stream = await client.aio.models.generate_content_stream(
             model="gemini-2.5-flash",
             contents=contents,
@@ -84,13 +89,25 @@ async def analyze_image(
             }
         )
         
+        def safe_log(msg: str):
+            try:
+                print(msg)
+            except Exception:
+                try:
+                    print(msg.encode("ascii", errors="replace").decode("ascii"))
+                except Exception:
+                    pass
+
         full_text = ""
+        safe_log(f"[GEMINI DEBUG] Starting stream for question: {question}")
         async for chunk in response_stream:
             if chunk.text:
+                safe_log(f"[GEMINI DEBUG] Chunk: {chunk.text}")
                 full_text += chunk.text
                 # Dispatch custom event for LangGraph to catch
                 await adispatch_custom_event("gemini_token", {"token": chunk.text})
                 
+        safe_log(f"[GEMINI DEBUG] Full response: {full_text}")
         return full_text
         
     except Exception as e:

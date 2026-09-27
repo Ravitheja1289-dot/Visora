@@ -9,14 +9,22 @@ def extract_image_metadata(context_items: List[ContextItem]) -> Optional[ImageMe
     """
     for item in context_items:
         raw_val = item.value
-        data: Dict[str, Any] = {}
         if isinstance(raw_val, str):
             try:
                 data = json.loads(raw_val)
+                # Unwrap if double-encoded JSON string
+                if isinstance(data, str):
+                    try:
+                        data = json.loads(data)
+                    except Exception:
+                        pass
             except Exception:
                 continue
         elif isinstance(raw_val, dict):
             data = raw_val
+
+        if not isinstance(data, dict):
+            continue
 
         # Check for image metadata markers
         if "imageId" in data or "imageName" in data or "imageDimensions" in data:

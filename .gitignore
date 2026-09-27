@@ -46,6 +46,29 @@ lerna-debug.log*
 # Testing and Coverage
 /coverage
 /.nyc_output
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Temporary and Scratch Files
+scratch/
+test_image*.png
+test_image.png
+test_image2.png
+*.tmp
+*.temp
+
+# Uploaded Files and Media
+backend/uploads/*
+!backend/uploads/.gitkeep
+uploads/*
+!uploads/.gitkeep
 
 # Operating System files
 .DS_Store
@@ -90,9 +113,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 
 # Environments
 .env

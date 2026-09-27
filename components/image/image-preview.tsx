@@ -151,6 +151,12 @@ export function ImagePreview({
             type="text"
             value={promptInput}
             onChange={(e) => setPromptInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAnalyzeClick();
+              }
+            }}
             placeholder="Ask about layout hierarchy, spatial arrangement, colors, or UI elements..."
             className="w-full rounded-2xl border border-white/[0.12] bg-black/40 px-5 py-3.5 text-sm text-white placeholder-[#86868b] backdrop-blur-xl transition-all duration-200 focus:border-[#2997ff] focus:bg-black/60 focus:outline-none focus:ring-4 focus:ring-[#2997ff]/20"
           />
@@ -160,7 +166,7 @@ export function ImagePreview({
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-2 text-xs text-[#86868b]">
             <Info className="h-3.5 w-3.5 text-white/50 shrink-0" />
-            <span>Frontend foundation active. VLM streaming reasoning hooks in Phase 2.</span>
+            <span>Gemini 2.5 Flash Vision & LangGraph streaming reasoning active.</span>
           </div>
 
           <Button
