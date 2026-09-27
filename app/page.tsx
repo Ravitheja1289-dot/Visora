@@ -48,7 +48,11 @@ function VisoraApp() {
   };
 
   return (
-    <Shell onReset={handleReset} hasActiveImage={!!selectedImage}>
+    <Shell
+      onReset={handleReset}
+      hasActiveImage={!!selectedImage}
+      isWorkspaceActive={isWorkspaceActive}
+    >
       {/* 1. Empty State */}
       {!selectedImage && (
         <div className="flex flex-col items-center text-center animate-fade-in py-2">
@@ -95,10 +99,10 @@ function VisoraApp() {
 
       {/* 3. Main Workspace State (Dual-Pane Desktop / Responsive Mobile) */}
       {selectedImage && isWorkspaceActive && (
-        <div className="w-full flex flex-col h-[calc(100vh-8rem)] min-h-[550px] animate-fade-in">
+        <div className="w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden animate-fade-in">
           {/* Connection Error Banner (Clean Dev Feedback, never hidden) */}
           {connectionError && (
-            <div className="mb-3 flex items-center justify-between rounded-xl border border-red-500/40 bg-red-950/40 px-4 py-2 text-xs text-red-200">
+            <div className="mb-3 flex items-center justify-between rounded-xl border border-red-500/40 bg-red-950/40 px-4 py-2 text-xs text-red-200 shrink-0">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
                 <span>CopilotKit Runtime Error: {connectionError}</span>
@@ -107,7 +111,7 @@ function VisoraApp() {
           )}
 
           {/* Mobile Tab Switcher */}
-          <div className="flex sm:hidden items-center justify-center mb-3">
+          <div className="flex sm:hidden items-center justify-center mb-3 shrink-0">
             <div className="inline-flex rounded-full border border-white/[0.12] bg-white/[0.05] p-1 backdrop-blur-md">
               <button
                 type="button"
@@ -137,11 +141,11 @@ function VisoraApp() {
           </div>
 
           {/* Desktop Dual-Pane Workspace */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full min-h-0 flex-1 overflow-hidden">
             {/* Left Pane: Image Canvas */}
             <div
-              className={`lg:col-span-7 h-full ${
-                mobileTab === "image" ? "flex" : "hidden lg:flex"
+              className={`lg:col-span-7 h-full min-h-0 overflow-hidden ${
+                mobileTab === "image" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
               }`}
             >
               <ImageWorkspace
@@ -153,8 +157,8 @@ function VisoraApp() {
 
             {/* Right Pane: Assistant Chat Workspace */}
             <div
-              className={`lg:col-span-5 h-full ${
-                mobileTab === "assistant" ? "flex" : "hidden lg:flex"
+              className={`lg:col-span-5 h-full min-h-0 overflow-hidden ${
+                mobileTab === "assistant" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
               }`}
             >
               <ChatWorkspace

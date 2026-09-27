@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { useCopilotChat, useCopilotReadable } from "@copilotkit/react-core";
+import { useCopilotChatInternal, useCopilotChat, useCopilotReadable } from "@copilotkit/react-core";
 import { TextMessage, Role } from "@copilotkit/runtime-client-gql";
 import { ChatMessage, AnalysisState, GenerationStatus, AnalysisStage } from "@/types/chat";
 import { UploadedImageState } from "@/types/image";
@@ -30,12 +30,14 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
   });
 
   const {
-    visibleMessages,
+    messages: copilotMessages,
     appendMessage,
     stopGeneration: copilotStopGeneration,
     isLoading: isCopilotLoading,
     reset: copilotReset,
-  } = useCopilotChat();
+  } = useCopilotChatInternal();
+
+  const rawMessages = copilotMessages || (useCopilotChat as any)?.visibleMessages || [];
 
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isManuallyStopped, setIsManuallyStopped] = useState(false);
@@ -51,7 +53,7 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
     let currentStages: string[] = [];
     let currentClarificationOpts: string[] = [];
 
-    (visibleMessages || []).forEach((msg: any, index: number) => {
+    (rawMessages || []).forEach((msg: any, index: number) => {
       const isUser = msg.role === Role.User || msg.role === "user";
       let content =
         typeof msg.content === "string"
@@ -76,7 +78,7 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
         }
         
         // Extract clarification
-        const clarRegex = /__visora_clarification__:({.*})/g;
+        const clarRegex = /__visora_clarification__:(\{[\s\S]*?\})/g;
         let clarMatch;
         while ((clarMatch = clarRegex.exec(content)) !== null) {
           isWaitingForClarification = true;
@@ -98,8 +100,7 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
         // Strip internal markers from content, but preserve <thinking> tags for inline ThinkingBlock
         content = content
           .replace(/__visora_stage__:([\w_]+)/g, "")
-          .replace(/__visora_clarification__:({.*})/g, "")
-          .replace(CLARIFICATION_QUESTION, "")
+          .replace(/__visora_clarification__:(\{[\s\S]*?\})/g, "")
           .trim();
         
         // If the message is completely empty after stripping metadata, and it's not streaming, don't show it
@@ -108,8 +109,8 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
         }
       }
 
-      const isStreaming = !isUser && isCopilotLoading && index === visibleMessages.length - 1;
-      const isStoppedMsg = !isUser && isManuallyStopped && index === visibleMessages.length - 1;
+      const isStreaming = !isUser && isCopilotLoading && index === rawMessages.length - 1;
+      const isStoppedMsg = !isUser && isManuallyStopped && index === rawMessages.length - 1;
 
       if (content || isStreaming) {
         list.push({
@@ -124,7 +125,7 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
     });
 
     return { list, hasClarification: isWaitingForClarification, stages: currentStages, opts: currentClarificationOpts };
-  }, [visibleMessages, isCopilotLoading, isManuallyStopped]);
+  }, [rawMessages, isCopilotLoading, isManuallyStopped]);
 
   useEffect(() => {
     if (mappedOpts && mappedOpts.length > 0) {
@@ -142,10 +143,10 @@ export function useCopilotVisoraChat({ selectedImage }: UseCopilotVisoraChatProp
     if (isManuallyStopped) return "stopped";
     if (isCopilotLoading) return "running";
     if (hasClarification) return "waiting_for_clarification";
-    if (visibleMessages && visibleMessages.length > 0) return "completed";
+    if (rawMessages && rawMessages.length > 0) return "completed";
     if (selectedImage) return "ready";
     return "idle";
-  }, [isCopilotLoading, connectionError, isManuallyStopped, visibleMessages, selectedImage, hasClarification]);
+  }, [isCopilotLoading, connectionError, isManuallyStopped, rawMessages, selectedImage, hasClarification]);
 
   // Compute Analysis State for Reasoning Panel based on generationStatus
   const analysisState: AnalysisState = useMemo(() => {

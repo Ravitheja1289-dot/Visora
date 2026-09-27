@@ -59,7 +59,7 @@ export function ChatInput({
     : ["Layout", "Colors", "Accessibility"]; // Fallback if backend didn't send them
 
   return (
-    <div className="border-t border-white/[0.08] bg-black/40 p-4 backdrop-blur-3xl flex flex-col gap-3">
+    <div className="shrink-0 border-t border-white/[0.08] bg-black/40 p-4 backdrop-blur-md flex flex-col gap-3">
       
       {/* HITL Clarification UI */}
       {generationStatus === "waiting_for_clarification" && (

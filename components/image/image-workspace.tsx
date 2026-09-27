@@ -48,9 +48,9 @@ export function ImageWorkspace({
   };
 
   return (
-    <div className="flex h-full w-full flex-col rounded-[24px] border border-white/[0.08] bg-white/[0.015] backdrop-blur-[40px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+    <div className="flex flex-col h-full w-full min-h-0 rounded-[24px] border border-white/[0.08] bg-[#0c0d12]/90 backdrop-blur-md overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
       {/* Top Specular Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-black/20 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-black/20 px-4 py-3 shrink-0">
         {/* File Metadata Info */}
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-white/80">
@@ -135,14 +135,14 @@ export function ImageWorkspace({
       </div>
 
       {/* Interactive Image Canvas Viewport */}
-      <div className="relative flex flex-1 min-h-[350px] items-center justify-center overflow-auto p-4 bg-black/40">
+      <div className="relative flex flex-1 min-h-0 h-full w-full items-center justify-center overflow-auto p-4 bg-black/40">
         {/* Subtle grid pattern background */}
         <div 
           className="pointer-events-none absolute inset-0 opacity-[0.025] [background-image:linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] [background-size:20px_20px]" 
         />
 
         {/* The Visual Canvas Element */}
-        <div className="relative flex items-center justify-center transition-all duration-200 ease-out">
+        <div className="relative flex h-full w-full items-center justify-center transition-all duration-200 ease-out">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={image.dataUrl}
@@ -154,7 +154,7 @@ export function ImageWorkspace({
             }
             className={
               fitMode === "contain"
-                ? "max-h-[calc(100vh-16rem)] max-w-full object-contain rounded-xl shadow-2xl border border-white/[0.08]"
+                ? "max-h-full max-w-full object-contain rounded-xl shadow-2xl border border-white/[0.08]"
                 : "max-w-none rounded-xl shadow-2xl border border-white/[0.08] transition-transform duration-150"
             }
           />

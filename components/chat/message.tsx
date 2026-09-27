@@ -71,7 +71,7 @@ export function Message({ message }: MessageProps) {
 
   return (
     <div className="flex w-full justify-start animate-fade-in py-1.5">
-      <div className="flex w-full max-w-[95%] items-start gap-3">
+      <div className="flex w-full max-w-[95%] items-start gap-3 min-w-0">
         {/* Apple Intelligence Style Avatar */}
         <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-[#0071e3]/20 to-[#42a1ff]/20 border border-[#0071e3]/30 text-[#42a1ff] shadow-[0_0_12px_rgba(0,113,227,0.15)]">
           <Sparkles className="h-3.5 w-3.5" />
@@ -87,7 +87,7 @@ export function Message({ message }: MessageProps) {
             />
           )}
 
-          <div className="text-[15px] font-normal leading-relaxed text-white/95">
+          <div className="text-[15px] font-normal leading-relaxed text-white/95 min-w-0 break-words">
             {responseText ? (
               <div className="prose prose-invert prose-p:leading-[1.6] prose-p:my-2 prose-ul:my-2 prose-li:my-0.5 max-w-none break-words tracking-[-0.015em]">
                 <ReactMarkdown>{responseText}</ReactMarkdown>

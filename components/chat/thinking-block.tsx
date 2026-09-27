@@ -1,7 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, Check, Loader2, Sparkles, Brain, Zap, Search, Camera, Lightbulb } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Loader2,
+  Sparkles,
+  Brain,
+  Zap,
+  Search,
+  Camera,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThinkingBlockProps {
@@ -10,8 +20,21 @@ interface ThinkingBlockProps {
 }
 
 export function ThinkingBlock({ thinkingText, isThinking }: ThinkingBlockProps) {
-  // Auto-expand while thinking, allow toggle
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // If initially mounted while thinking, stay expanded; if already finished, start collapsed
+  const [isCollapsed, setIsCollapsed] = useState(!isThinking);
+  const prevThinkingRef = useRef(isThinking);
+
+  // Watch isThinking transitions:
+  // When isThinking transitions from true -> false (output generated), AUTO-COLLAPSE
+  // When isThinking transitions from false -> true, AUTO-EXPAND
+  useEffect(() => {
+    if (prevThinkingRef.current && !isThinking) {
+      setIsCollapsed(true);
+    } else if (!prevThinkingRef.current && isThinking) {
+      setIsCollapsed(false);
+    }
+    prevThinkingRef.current = isThinking;
+  }, [isThinking]);
 
   // Parse lines into distinct execution steps
   const steps = React.useMemo(() => {
@@ -25,22 +48,22 @@ export function ThinkingBlock({ thinkingText, isThinking }: ThinkingBlockProps) 
 
   const getStepIcon = (text: string, isCurrent: boolean) => {
     if (!isCurrent) {
-      return <Check className="h-3.5 w-3.5 text-emerald-400" />;
+      return <Check className="h-3 w-3 text-emerald-400" />;
     }
     const lower = text.toLowerCase();
     if (lower.includes("initializ") || lower.includes("query") || lower.includes("processing")) {
-      return <Zap className="h-3.5 w-3.5 text-[#2997ff] animate-pulse" />;
+      return <Zap className="h-3 w-3 text-[#2997ff] animate-pulse" />;
     }
     if (lower.includes("inspect") || lower.includes("canvas")) {
-      return <Search className="h-3.5 w-3.5 text-[#2997ff] animate-pulse" />;
+      return <Search className="h-3 w-3 text-[#2997ff] animate-pulse" />;
     }
     if (lower.includes("upload") || lower.includes("embedding") || lower.includes("caching")) {
-      return <Camera className="h-3.5 w-3.5 text-[#2997ff] animate-pulse" />;
+      return <Camera className="h-3 w-3 text-[#2997ff] animate-pulse" />;
     }
     if (lower.includes("reason") || lower.includes("analyzing") || lower.includes("examining")) {
-      return <Brain className="h-3.5 w-3.5 text-[#2997ff] animate-pulse" />;
+      return <Brain className="h-3 w-3 text-[#2997ff] animate-pulse" />;
     }
-    return <Loader2 className="h-3.5 w-3.5 text-[#2997ff] animate-spin" />;
+    return <Loader2 className="h-3 w-3 text-[#2997ff] animate-spin" />;
   };
 
   const cleanStepText = (text: string) => {
@@ -48,35 +71,34 @@ export function ThinkingBlock({ thinkingText, isThinking }: ThinkingBlockProps) 
   };
 
   return (
-    <div className="w-full my-2.5 rounded-xl border border-white/[0.08] bg-[#12131a]/80 backdrop-blur-md overflow-hidden transition-all shadow-[0_4px_20px_rgba(0,0,0,0.25)]">
-      {/* Header Bar */}
+    <div className="w-full my-1.5 rounded-lg border border-white/[0.08] bg-[#12131a]/60 overflow-hidden transition-all text-left">
+      {/* Sleek Minimal Header Bar */}
       <button
         type="button"
         onClick={() => setIsCollapsed((prev) => !prev)}
-        className="w-full flex items-center justify-between px-3.5 py-2.5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-1.5 bg-white/[0.02] hover:bg-white/[0.05] transition-colors cursor-pointer group text-left"
       >
-        <div className="flex items-center gap-2">
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0071e3]/15 text-[#2997ff]">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#0071e3]/15 text-[#2997ff]">
             {isThinking ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
             ) : (
-              <Sparkles className="h-3 w-3 text-emerald-400" />
+              <Sparkles className="h-2.5 w-2.5 text-white/50 group-hover:text-emerald-400 transition-colors" />
             )}
           </div>
-          <span className="text-[12px] font-medium text-white/90">
-            {isThinking ? "Thinking & Reasoning..." : `Thought Process (${steps.length} steps)`}
+          <span className="text-[12px] font-medium text-white/70 group-hover:text-white/90 transition-colors truncate">
+            {isThinking
+              ? "Thinking & Reasoning..."
+              : `Thought process (${steps.length} ${steps.length === 1 ? "step" : "steps"})`}
           </span>
           {isThinking && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[#0071e3]/20 text-[#42a1ff] border border-[#0071e3]/30">
+            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-[#0071e3]/20 text-[#42a1ff] border border-[#0071e3]/30">
               Live
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1 text-white/40 hover:text-white/80 transition-colors">
-          <span className="text-[11px] font-normal">
-            {isCollapsed ? "Show" : "Hide"}
-          </span>
+        <div className="flex items-center gap-1 text-white/40 group-hover:text-white/70 transition-colors shrink-0 ml-2">
           {isCollapsed ? (
             <ChevronDown className="h-3.5 w-3.5" />
           ) : (
@@ -87,7 +109,7 @@ export function ThinkingBlock({ thinkingText, isThinking }: ThinkingBlockProps) 
 
       {/* Expanded Step Timeline */}
       {!isCollapsed && (
-        <div className="border-t border-white/[0.05] bg-black/20 px-3.5 py-2.5 space-y-2">
+        <div className="border-t border-white/[0.05] bg-black/25 px-3 py-2 space-y-1.5 max-h-56 overflow-y-auto overscroll-contain">
           {steps.map((step, idx) => {
             const isLast = idx === steps.length - 1;
             const isCurrent = isThinking && isLast;
@@ -96,14 +118,16 @@ export function ThinkingBlock({ thinkingText, isThinking }: ThinkingBlockProps) 
               <div
                 key={idx}
                 className={cn(
-                  "flex items-start gap-2.5 text-[12px] transition-all",
-                  isCurrent ? "text-[#42a1ff] font-medium py-1 px-2 rounded-lg bg-[#0071e3]/10 border border-[#0071e3]/20" : "text-white/70 py-0.5"
+                  "flex items-start gap-2 text-[11px] leading-snug transition-all",
+                  isCurrent
+                    ? "text-[#42a1ff] font-medium py-1 px-2 rounded-md bg-[#0071e3]/10 border border-[#0071e3]/20"
+                    : "text-white/60 py-0.5"
                 )}
               >
-                <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                   {getStepIcon(step, isCurrent)}
                 </div>
-                <span className="leading-snug break-words">
+                <span className="break-words min-w-0 flex-1">
                   {cleanStepText(step)}
                 </span>
               </div>
